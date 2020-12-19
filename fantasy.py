@@ -314,6 +314,7 @@ if __name__ == "__main__":
     parser.add_argument('--overwrite-pulled-team', action="store_true", help="True if you want to build your current squad manually instead of pulling, team would have to be hardcoded")
     parser.add_argument('-p', '--password', action="store_true", help="True if fantasy password is to be provided manually, false if it's to be decoded from hardcoded encrypted password")
     parser.add_argument('-u', '--user-id', default=3521386, help="user-id from fantasy server to evaluate")
+    parser.add_argument('-v', '--verbose', action="store_true", help="Print output for every possible squad")
 
     args = vars(parser.parse_args())
 
@@ -395,10 +396,17 @@ if __name__ == "__main__":
     best_squad = a_squad.copy()
     changed_squad = current_squad.copy()  # best squad given transfer costs
     current_form = current_squad.best_starter_lineup.total_form
+
+    n_squads = 1
+    erase = '\x1b[1A\x1b[2K'
     while True:
         try:
             b_squad = next(a_squad_generator)
-            print(f"Found! Current form: {current_form:.2f}; Changed form: {changed_squad.best_starter_lineup.total_form:.2f}; Best found: {best_squad.best_starter_lineup.total_form:.2f}; Iter form: {b_squad.best_starter_lineup.total_form:.2f}")
+            if args['verbose']:
+                print(f"Found! Current form: {current_form:.2f}; Changed form: {changed_squad.best_starter_lineup.total_form:.2f}; Best found: {best_squad.best_starter_lineup.total_form:.2f}; Iter form: {b_squad.best_starter_lineup.total_form:.2f}")
+            else:
+                print(f'{erase}Valid squads found: {n_squads}')
+                n_squads += 1
         except StopIteration:
             break
         except SquadNotFull:
@@ -406,17 +414,17 @@ if __name__ == "__main__":
 
         if b_squad.best_starter_lineup.total_form > best_squad.best_starter_lineup.total_form:
             best_squad = b_squad.copy()
-            print(f"It was better! New startup form: {b_squad.best_starter_lineup.total_form:.2f}")
+            print(f"Found a squad better than the current best: New startup form: {b_squad.best_starter_lineup.total_form:.2f}\n")
 
         # Adjust for cost of transfers
         b_squad_adjusted = b_squad.best_starter_lineup.total_form - max(0, b_squad.number_of_changes(current_squad) - n_free_transfers) * transfer_cost
         changed_squad_adjusted = changed_squad.best_starter_lineup.total_form - max(0, changed_squad.number_of_changes(current_squad) - n_free_transfers) * transfer_cost
         if  b_squad_adjusted > changed_squad_adjusted:
             changed_squad = b_squad.copy()
-            print(f"It was better for the change! New startup form: {b_squad.best_starter_lineup.total_form:.2f}")
+            print(f"Found a squad that was better for the change! New startup form: {b_squad.best_starter_lineup.total_form:.2f}\n")
         elif b_squad_adjusted == changed_squad_adjusted and b_squad.total_cost < changed_squad.total_cost:
             changed_squad = b_squad.copy()
-            print(f"It was as good but cheaper for the change! New startup form: {b_squad.best_starter_lineup.total_form:.2f}")
+            print(f"Found a squad was as good but cheaper for the change! New startup form: {b_squad.best_starter_lineup.total_form:.2f}\n")
     t_1 = time.time()
     print(f"Total time: {t_1 - t_0}s")
 
