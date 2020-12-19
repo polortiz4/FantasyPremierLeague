@@ -2,7 +2,14 @@ import numpy as np
 import requests
 import time
 import types
+from pathlib import Path
 types.GeneratorType
+
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+
+# This is my encrypted password for the EPL fantasy
+encrypted_password = b"\xad\xdb8\xab\xa7\xaeA\r\xf2C\xc1\xb3u\xba?\xa0<\xce\xba\xd0\n6.\x0f\xf1\x08\x04\xd1\x8d\xc1W\xa9\xd2\xd5\xc2\x03\x19\xd5\x96\xa3\tI\xac*\xf7{\xf0\xa1\xb4N9\xa2y^\xe2\x8dr\xdfYEg\xa1\xe0?\x1d\xd8\xc3\x19\xcc\x069\x08=\xe7\xd5\x1d\xefT\xff\xf6L\x81s\xbd\x08s\x86uVK\x1d\xf7\xfc=g\xce#\x85\x1b\xa2\x8bJ\x8f\xea6q3\xee\x93\x8e1\xa1a\x12\xb8q\x8b^\xa0\xed\xa9R\xe2\xffo\xb9r\x14\x18\xab\xf1<h\x1a\xc0}\x9a\x89\xd8V\xadT\x1b\xa4\xfdj\x89\xe3U<2\x8a\x94\xbf\xd8\xbeE\xef\xf2Y\x870 \x17\x16\xc7\xe1\xf8\xd13\x9ab\x1eOz\t\xd9\xc8+J\xb6\xf3\x97Q\x96<\x94\x98E\xeb\xf9\xe3\x83\x0b4\xac\xdf\xb4\x8c8\xdb9\xd1\xa3[}\xe7$\x10\\\x02Xrw\xf9\x88\x82\x9e\xde\xbcF\x9d#n\xc0D\xf2\x90\xb6\x86\x0b\x98\xd9\xbeT{{\x92:aK\xeb\x9c\xd3\x03\xbf\x976G\xe9\xe1\xf4\x7f',1"
 
 class TooExpensiveError(RuntimeError):
     pass
@@ -76,7 +83,7 @@ class squad():
                 unique_from_other.add_player(other_player)
         for mine, other in zip(unique_from_self.players, unique_from_other.players):
             assert(mine.position == other.position)
-            print(f"{mine} <-----------> {other}")
+            print(f"Out: {other} <-----------> In: {mine}")
 
     @property
     def max_cost(self):
@@ -301,26 +308,39 @@ def fill_squad(squad, available_players, cheapest_cost=None, squad_max_len=15, p
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('-g', '--gameweek', help='last week\'s gameweek number', required=True)
+    parser.add_argument('-g', '--gameweek', help='last week\'s gameweek number')
     parser.add_argument('--free-transfers',  default=1, help="number of free transfers available")
     parser.add_argument('--min-player-form',  default=4, help="minimum acceptable player form")
     parser.add_argument('--overwrite-pulled-team', action="store_true", help="True if you want to build your current squad manually instead of pulling, team would have to be hardcoded")
+    parser.add_argument('-p', '--password', action="store_true", help="True if fantasy password is to be provided manually, false if it's to be decoded from hardcoded encrypted password")
+    parser.add_argument('-u', '--user-id', default=3521386, help="user-id from fantasy server to evaluate")
 
     args = vars(parser.parse_args())
 
     n_free_transfers = args['free_transfers']
     transfer_cost = 4
     min_acceptable_form = args['min_player_form']
-    current_gameweek = args['gameweek']
-    user_id = 3521386
+
+    if args['gameweek'] is None:
+        current_gameweek = input("What was the last gameweek? ")
+    else:
+        current_gameweek = args['gameweek']
+    user_id = args['user_id']
 
     player_info_url = 'https://fantasy.premierleague.com/api/bootstrap-static/'
     my_team_url = f'https://fantasy.premierleague.com/api/entry/{user_id}/event/{current_gameweek}/picks/'
     login_url = "https://users.premierleague.com/accounts/login/"
 
+    if not args['password']:
+        with open(Path.home().joinpath(".ssh/id_rsa_nopassword"), "rb") as key_file:
+            private_key = serialization.load_ssh_private_key(key_file.read(), password=None)
+            decrpyted_password = private_key.decrypt(encrypted_password, padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)).decode("utf-8")
+    else:
+        decrypted_password = input("Password: ")
+
     payload = {
         'login': "polortiz_4@hotmail.com",
-        'password': input("Password: "),
+        'password': decrpyted_password,
         'redirect_uri': 'https://fantasy.premierleague.com/',
         'app':'plfpl-web'
     }
