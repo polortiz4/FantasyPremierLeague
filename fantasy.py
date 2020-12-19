@@ -320,7 +320,7 @@ if __name__ == "__main__":
 
     payload = {
         'login': "polortiz_4@hotmail.com",
-        'password': "@8j$*qiDew9pKs",
+        'password': input("Password: "),
         'redirect_uri': 'https://fantasy.premierleague.com/',
         'app':'plfpl-web'
     }
