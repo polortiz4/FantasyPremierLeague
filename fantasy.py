@@ -68,10 +68,10 @@ class player():
 class squad():
     def __init__(self, max_cost=100):
         self.max_cost = max_cost
-        self.goalkeepers = []
-        self.defenders = []
-        self.midfielders = []
-        self.strikers = []
+        self._goalkeepers = []
+        self._defenders = []
+        self._midfielders = []
+        self._strikers = []
         self._players = []
 
     def changes_from(self, other):
@@ -102,15 +102,14 @@ class squad():
         diff = 0
         for my_player in self.players:
             c = other.players.count(my_player) 
-            if c != 1 and c != 0:
-                raise RuntimeError(f"Invalid number of the same player (should be either 0 or one, got: {c}")
-            elif c == 0:
+            assert(c == 1 or c == 0)
+            if c == 0:
                 diff += 1
         return diff
 
     def remove_player(self, player):
         if self.players.count(player) > 0:
-            getattr(self, f"{player.position}s").remove(player)
+            getattr(self, f"_{player.position}s").remove(player)
             self._players.remove(player)
 
     def players_from_team(self, team):
@@ -131,36 +130,36 @@ class squad():
             raise TooExpensiveError(f"Not enough funds to add {player.name} who costs {player.price} and you have {self.max_cost - self.total_cost}")
 
         if player.position == "goalkeeper":
-            if len(self.goalkeepers) < 2:
-                self.goalkeepers.append(player)
+            if len(self._goalkeepers) < 2:
+                self._goalkeepers.append(player)
                 self._players.append(player)
                 return
             else:
-                raise PositionFull(f"Cannot add {player}, as there are too many goalkeepers: {len(self.goalkeepers)}")
+                raise PositionFull(f"Cannot add {player}, as there are too many goalkeepers: {len(self._goalkeepers)}")
 
         if player.position == "defender":
-            if len(self.defenders) < 5:
-                self.defenders.append(player)
+            if len(self._defenders) < 5:
+                self._defenders.append(player)
                 self._players.append(player)
                 return
             else:
-                raise PositionFull(f"Cannot add {player}, as there are too many defenders: {len(self.defenders)}")
+                raise PositionFull(f"Cannot add {player}, as there are too many defenders: {len(self._defenders)}")
 
         if player.position == "midfielder":
-            if len(self.midfielders) < 5:
-                self.midfielders.append(player)
+            if len(self._midfielders) < 5:
+                self._midfielders.append(player)
                 self._players.append(player)
                 return
             else:
-                raise PositionFull(f"Cannot add {player}, as there are too many midfielders: {len(self.midfielders)}")
+                raise PositionFull(f"Cannot add {player}, as there are too many midfielders: {len(self._midfielders)}")
 
         if player.position == "striker":
-            if len(self.strikers) < 3:
-                self.strikers.append(player)
+            if len(self._strikers) < 3:
+                self._strikers.append(player)
                 self._players.append(player)
                 return
             else:
-                raise PositionFull(f"Cannot add {player}, as there are too many strikers: {len(self.strikers)}")
+                raise PositionFull(f"Cannot add {player}, as there are too many strikers: {len(self._strikers)}")
 
     def validate_cost(self):
         if self.total_cost > self.max_cost:
@@ -168,7 +167,7 @@ class squad():
     
     @property
     def positions_full(self):
-        return len(self.goalkeepers) == 2 and len(self.defenders) == 5 and len(self.midfielders) == 5 and len(self.strikers) == 3
+        return len(self._goalkeepers) == 2 and len(self._defenders) == 5 and len(self._midfielders) == 5 and len(self._strikers) == 3
 
     def starters(self, player_list, n_starters):
         player_list.sort(reverse=True, key=lambda x: x.form)
@@ -182,7 +181,7 @@ class squad():
 
     @property
     def starting_goalkeeper(self):
-        return self.starters(self.goalkeepers, 1)
+        return self.starters(self._goalkeepers, 1)
 
     @property
     def players(self):
@@ -190,7 +189,7 @@ class squad():
 
     def organized_players(self):
         self.sort_players()
-        return [*self.goalkeepers, *self.defenders, *self.midfielders, *self.strikers]
+        return [*self._goalkeepers, *self._defenders, *self._midfielders, *self._strikers]
 
 
     @property
@@ -236,12 +235,13 @@ class squad():
             ]
 
         best_combination = None
+        best_form = None
         for i, lineup in enumerate(possible_lineups):
-            gks = self.starters(self.goalkeepers, lineup[0])
-            defs = self.starters(self.defenders, lineup[1])
-            mids = self.starters(self.midfielders, lineup[2])
-            fors = self.starters(self.strikers, lineup[3])
-            # starters = [*gks, *defs, *mids, *fors]
+            gks = self.starters(self._goalkeepers, lineup[0])
+            defs = self.starters(self._defenders, lineup[1])
+            mids = self.starters(self._midfielders, lineup[2])
+            fors = self.starters(self._strikers, lineup[3])
+
             starting_squad = squad()
             for gk in gks:
                 starting_squad.add_player(gk)
@@ -252,9 +252,9 @@ class squad():
             for forward in fors:
                 starting_squad.add_player(forward)
 
-            # combinations.append((starters, self.player_list_form(starters)))
-            if best_combination is None or starting_squad.total_form > best_combination.total_form:
+            if best_combination is None or starting_squad.total_form > best_form:
                 best_combination = starting_squad
+                best_form = best_combination.total_form
         return best_combination
 
     def copy(self):
@@ -264,10 +264,11 @@ class squad():
         return other
 
     def sort_players(self):
-        self.goalkeepers.sort(reverse=True, key=lambda x: x.form)
-        self.defenders.sort(reverse=True, key=lambda x: x.form)
-        self.midfielders.sort(reverse=True, key=lambda x: x.form)
-        self.strikers.sort(reverse=True, key=lambda x: x.form)
+        self._goalkeepers.sort(reverse=True, key=lambda x: x.form)
+        self._defenders.sort(reverse=True, key=lambda x: x.form)
+        self._midfielders.sort(reverse=True, key=lambda x: x.form)
+        self._strikers.sort(reverse=True, key=lambda x: x.form)
+        self._players.sort(reverse=True, key=lambda x: x.form)
 
 # @profile
 def fill_squad(squad, available_players, cheapest_cost=None, squad_max_len=15, current_squad=None, n_free_transfers=None, transfer_cost=4, min_form=None, max_form=None, stack_i=1, changes_so_far=None):
@@ -278,9 +279,9 @@ def fill_squad(squad, available_players, cheapest_cost=None, squad_max_len=15, c
     if max_form is None:
         max_form = max(available_players, key=lambda x: x.form).form
     if n_free_transfers is None:
-        n_free_transfers = 15
+        n_free_transfers = squad_max_len
     if current_squad is None:
-        n_free_transfers = 15
+        n_free_transfers = squad_max_len
     if changes_so_far is None:
         changes_so_far = squad.number_of_changes(current_squad)
 
@@ -291,8 +292,7 @@ def fill_squad(squad, available_players, cheapest_cost=None, squad_max_len=15, c
         raise SquadNotFull(f"Not enough Players")
 
     for i, p in enumerate(available_players):
-        if p in squad.players:
-            continue
+        assert(p not in squad.players)
         if len_players < squad_max_len - 1 and (squad.max_cost - (squad.total_cost + p.price)) / (squad_max_len - 1 - len_players) <= cheapest_cost:
             continue
         if squad.total_cost + p.price > squad.max_cost:
@@ -309,13 +309,10 @@ def fill_squad(squad, available_players, cheapest_cost=None, squad_max_len=15, c
 
         if squad.positions_full:
             yield squad
-        if not squad.positions_full:  # else statement would be fine.. but generator is being weird here
-            if len(available_players) == i+1:
-                squad.remove_player(p)
-                raise SquadNotFull(f"Squad not full")
+        elif len(available_players) != i+1:
+            # Assumption: available_players is sorted by form
+            nested_gen = fill_squad(squad, available_players[i+1:], cheapest_cost, current_squad=current_squad, n_free_transfers=n_free_transfers, min_form=min_form, max_form=available_players[i+1].form, stack_i=stack_i+1)
             try:
-                # Assumption: available_players is sorted by form
-                nested_gen = fill_squad(squad, available_players[i+1:], cheapest_cost, current_squad=current_squad, n_free_transfers=n_free_transfers, min_form=min_form, max_form=available_players[i+1].form, stack_i=stack_i+1)
                 yield from nested_gen
             except SquadNotFull:
                 pass
@@ -330,7 +327,7 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--password', action="store_true", help="True if fantasy password is to be provided manually, false if it's to be decoded from hardcoded encrypted password")
     parser.add_argument('-u', '--user-id', default=3521386, help="user-id from fantasy server to evaluate")
     parser.add_argument('-v', '--verbose', action="store_true", help="Print output for every possible squad")
-    parser.add_argument('-n', '--top-n-players', default=40, help="Number of players to search in, that is the top n players in terms of form")
+    parser.add_argument('-n', '--top-n-players', default=20, help="Number of players to search in, that is the top n players in terms of form")
     parser.add_argument('--free-transfers',  default=1, help="number of free transfers available")
     parser.add_argument('--overwrite-pulled-team', action="store_true", help="True if you want to build your current squad manually instead of pulling, team would have to be hardcoded")
     parser.add_argument('--min-player-form',  help="minimum acceptable player form")
