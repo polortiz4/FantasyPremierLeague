@@ -330,7 +330,8 @@ if __name__ == "__main__":
     parser.add_argument('-n', '--top-n-players', default=20, help="Number of players to search in, that is the top n players in terms of form")
     parser.add_argument('--free-transfers',  default=1, help="number of free transfers available")
     parser.add_argument('--overwrite-pulled-team', action="store_true", help="True if you want to build your current squad manually instead of pulling, team would have to be hardcoded")
-    parser.add_argument('--min-player-form',  help="minimum acceptable player form")
+    parser.add_argument('--min-player-form', help="minimum acceptable player form")
+    parser.add_argument('--transfer-cost', default=4, help="cost per transfer")
 
     args = vars(parser.parse_args())
 
@@ -345,7 +346,7 @@ if __name__ == "__main__":
             print(f"Choosing from top {top_n_players} players")
 
     n_free_transfers = int(args['free_transfers'])
-    transfer_cost = 4
+    transfer_cost = int(args['transfer_cost'])
 
     if args['gameweek'] is None:
         current_gameweek = input("What was the last gameweek? ")
