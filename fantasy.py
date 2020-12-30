@@ -8,6 +8,8 @@ types.GeneratorType
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 
+from keyPoller import KeyPoller as kp
+
 # This is my encrypted password for the EPL fantasy
 encrypted_password = b"\xad\xdb8\xab\xa7\xaeA\r\xf2C\xc1\xb3u\xba?\xa0<\xce\xba\xd0\n6.\x0f\xf1\x08\x04\xd1\x8d\xc1W\xa9\xd2\xd5\xc2\x03\x19\xd5\x96\xa3\tI\xac*\xf7{\xf0\xa1\xb4N9\xa2y^\xe2\x8dr\xdfYEg\xa1\xe0?\x1d\xd8\xc3\x19\xcc\x069\x08=\xe7\xd5\x1d\xefT\xff\xf6L\x81s\xbd\x08s\x86uVK\x1d\xf7\xfc=g\xce#\x85\x1b\xa2\x8bJ\x8f\xea6q3\xee\x93\x8e1\xa1a\x12\xb8q\x8b^\xa0\xed\xa9R\xe2\xffo\xb9r\x14\x18\xab\xf1<h\x1a\xc0}\x9a\x89\xd8V\xadT\x1b\xa4\xfdj\x89\xe3U<2\x8a\x94\xbf\xd8\xbeE\xef\xf2Y\x870 \x17\x16\xc7\xe1\xf8\xd13\x9ab\x1eOz\t\xd9\xc8+J\xb6\xf3\x97Q\x96<\x94\x98E\xeb\xf9\xe3\x83\x0b4\xac\xdf\xb4\x8c8\xdb9\xd1\xa3[}\xe7$\x10\\\x02Xrw\xf9\x88\x82\x9e\xde\xbcF\x9d#n\xc0D\xf2\x90\xb6\x86\x0b\x98\xd9\xbeT{{\x92:aK\xeb\x9c\xd3\x03\xbf\x976G\xe9\xe1\xf4\x7f',1"
 
@@ -60,6 +62,9 @@ class player():
 
     def __repr__(self):
         return f"({self.name}, {float(self.form):.2f}, {float(self.price):.2f}, {self.position}, {self.team}, {self.id})"
+
+    def __str__(self):
+        return f"({self.name}, form: {float(self.form):.2f}, price: {float(self.price):.2f}, position: {self.position}, team: {self.team}, id: {self.id})"
 
     def __eq__(self, other):
         return self.name == other.name and self.price == other.price and self.form == other.form and self.position == other.position and self.team == other.team and self.id == other.id
@@ -311,7 +316,7 @@ def fill_squad(squad, available_players, cheapest_cost=None, squad_max_len=15, c
             yield squad
         elif len(available_players) != i+1:
             # Assumption: available_players is sorted by form
-            nested_gen = fill_squad(squad, available_players[i+1:], cheapest_cost, current_squad=current_squad, n_free_transfers=n_free_transfers, min_form=min_form, max_form=available_players[i+1].form, stack_i=stack_i+1)
+            nested_gen = fill_squad(squad, available_players[i+1:], cheapest_cost, transfer_cost=transfer_cost, current_squad=current_squad, n_free_transfers=n_free_transfers, min_form=min_form, max_form=available_players[i+1].form, stack_i=stack_i+1)
             try:
                 yield from nested_gen
             except SquadNotFull:
@@ -346,7 +351,7 @@ if __name__ == "__main__":
             print(f"Choosing from top {top_n_players} players")
 
     n_free_transfers = int(args['free_transfers'])
-    transfer_cost = int(args['transfer_cost'])
+    transfer_cost = float(args['transfer_cost'])
 
     if args['gameweek'] is None:
         current_gameweek = input("What was the last gameweek? ")
@@ -427,48 +432,57 @@ if __name__ == "__main__":
     current_form = current_squad.best_starter_lineup.total_form
 
     a_squad = squad(max_cost=current_squad.max_cost)
-    a_squad_generator = fill_squad(a_squad, players, current_squad=current_squad, n_free_transfers=n_free_transfers, max_form=players[0].form, min_form=players[-1].form)
+    a_squad_generator = fill_squad(a_squad, players, transfer_cost=transfer_cost, current_squad=current_squad, n_free_transfers=n_free_transfers, max_form=players[0].form, min_form=players[-1].form)
 
     n_squads = 1
     erase = '\x1b[1A\x1b[2K'
     if not args['verbose']:
         print('')  # so the erase later doesn't erase the command
-    while True:
-        try:
-            b_squad = next(a_squad_generator)
-            if args['verbose']:
-                print(f"Found! Current form: {current_form:.2f}; Changed form: {changed_squad.best_starter_lineup.total_form:.2f}; Iter form: {b_squad.best_starter_lineup.total_form:.2f}\n")
-            else:
-                print(f'{erase}Valid squads found: {n_squads}, Progress: ', end='')
-                for i, player in enumerate(b_squad.players):
-                    print(f"{players[i:].index(player)}/{len(players[i:])}, ", end='')
-                print('')
-                n_squads += 1
-        except StopIteration:
-            break
-        except SquadNotFull:
-            break
 
-        # Adjust for cost of transfers
-        b_squad_adjusted = b_squad.best_starter_lineup.total_form - max(0, b_squad.number_of_changes(current_squad) - n_free_transfers) * transfer_cost
-        changed_squad_adjusted = changed_squad.best_starter_lineup.total_form - max(0, changed_squad.number_of_changes(current_squad) - n_free_transfers) * transfer_cost
-        if  b_squad_adjusted > changed_squad_adjusted:
-            changed_squad = b_squad.copy()
-            print(f"Found a squad that was better for the change! New startup form: {b_squad.best_starter_lineup.total_form:.2f}\n")
-        elif b_squad_adjusted == changed_squad_adjusted and b_squad.total_cost < changed_squad.total_cost:
-            changed_squad = b_squad.copy()
-            print(f"Found a squad was as good but cheaper for the change! New startup form: {b_squad.best_starter_lineup.total_form:.2f}\n")
-    t_1 = time.time()
-    print(f"Total time: {t_1 - t_0:.2f}s = {(t_1 - t_0) // 60:.0f}:{t_1 - t_0 - 60 * ((t_1 - t_0) // 60):.0f}")
+    def print_changed_squad():
+        print(f"\nChanged Squad:")
+        for player in changed_squad.players:
+            print(f"{player}")
+        print(f"\nChanged Squad Lineup:")
+        for player in changed_squad.best_starter_lineup.players:
+            print(f"{player}")
+        print(f"\nCaptain: {changed_squad.captain}, Form: {changed_squad.captain.form}")
+        print("\nChanges needed for Changed Squad:\n")
+        changed_squad.changes_from(current_squad)
+        print("\n")
 
-    print(f"\nChanged Squad:")
-    for player in changed_squad.players:
-        print(f"{player}")
-    print(f"\nChanged Squad Lineup:")
-    for player in changed_squad.best_starter_lineup.players:
-        print(f"{player}")
-    print(f"\nCaptain: {changed_squad.captain}, Form: {changed_squad.captain.form}")
+    with kp() as KP:
+        while True:
+            try:
+                b_squad = next(a_squad_generator)
+                if args['verbose']:
+                    print(f"Found! Current form: {current_form:.2f}; Changed form: {changed_squad.best_starter_lineup.total_form:.2f}; Iter form: {b_squad.best_starter_lineup.total_form:.2f}\n")
+                else:
+                    print(f'{erase}Valid squads found: {n_squads}, Progress: ', end='')
+                    for i, player in enumerate(b_squad.players):
+                        print(f"{players[i:].index(player)}/{len(players[i:])}, ", end='')
+                    print('')
+                    n_squads += 1
+                if n_squads % 100 == 0:
+                    key = KP.poll()
+                    if key == "p":
+                        print_changed_squad()
+            except StopIteration:
+                break
+            except SquadNotFull:
+                break
 
-    print("\nChanges needed for Changed Squad:\n")
-    changed_squad.changes_from(current_squad)
-    pass
+            # Adjust for cost of transfers
+            b_squad_adjusted = b_squad.best_starter_lineup.total_form - max(0, b_squad.number_of_changes(current_squad) - n_free_transfers) * transfer_cost
+            changed_squad_adjusted = changed_squad.best_starter_lineup.total_form - max(0, changed_squad.number_of_changes(current_squad) - n_free_transfers) * transfer_cost
+            if  b_squad_adjusted > changed_squad_adjusted:
+                changed_squad = b_squad.copy()
+                print(f"Found a squad that was better for the change! New startup form: {b_squad.best_starter_lineup.total_form:.2f}\n")
+            elif b_squad_adjusted == changed_squad_adjusted and b_squad.total_cost < changed_squad.total_cost:
+                changed_squad = b_squad.copy()
+                print(f"Found a squad was as good but cheaper for the change! New startup form: {b_squad.best_starter_lineup.total_form:.2f}\n")
+        t_1 = time.time()
+        print(f"Total time: {t_1 - t_0:.2f}s = {(t_1 - t_0) // 60:.0f}:{t_1 - t_0 - 60 * ((t_1 - t_0) // 60):.0f}")
+
+        print_changed_squad()
+        pass
