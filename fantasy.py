@@ -361,13 +361,13 @@ if __name__ == "__main__":
     if not args['password']:
         with open(Path.home().joinpath(".ssh/id_rsa_nopassword"), "rb") as key_file:
             private_key = serialization.load_ssh_private_key(key_file.read(), password=None)
-            decrpyted_password = private_key.decrypt(encrypted_password, padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)).decode("utf-8")
+            decrypted_password = private_key.decrypt(encrypted_password, padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)).decode("utf-8")
     else:
         decrypted_password = input("Password: ")
 
     payload = {
         'login': "polortiz_4@hotmail.com",
-        'password': decrpyted_password,
+        'password': decrypted_password,
         'redirect_uri': 'https://fantasy.premierleague.com/',
         'app':'plfpl-web'
     }
