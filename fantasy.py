@@ -40,7 +40,7 @@ def player_(p_info):
     if p_info['element_type'] == 4:
         position = "striker"
 
-    return player(name=p_info['second_name'], form=float(p_info['form']), price=float(p_info['now_cost'])/10, position=position, team=p_info['team'], id=p_info['id'])
+    return player(name=p_info['second_name'], form=float(p_info['form']), price=float(p_info['now_cost'])/10, position=position, team=p_info['team'], id=p_info['id'], health=p_info['chance_of_playing_next_round']/100)
 
 def add_by_last_name(squad, last_name):
     for p in players:
@@ -51,23 +51,44 @@ def add_by_last_name(squad, last_name):
 
 
 class player():
-    def __init__(self, name, form, price, position, team, id):
+    def __init__(self, name, form, price, position, team, id, health):
         super().__init__()
-        self.form = form
+        self._form = form
+        self._health = health
         self.price = price
         self.name = name
         self.position = position
         self.team = team
         self.id = id
 
+        self.metric = self.form * self.health  ## If this line is changed, make sure to change the line where players_json is sorted as well
+
     def __repr__(self):
-        return f"({self.name}, {float(self.form):.2f}, {float(self.price):.2f}, {self.position}, {self.team}, {self.id})"
+        return f"({self.name}, {float(self.form):.2f}, {float(self.price):.2f}, {self.position}, {self.team}, {self.id}, {self.health})"
 
     def __str__(self):
-        return f"({self.name}, form: {float(self.form):.2f}, price: {float(self.price):.2f}, position: {self.position}, team: {self.team}, id: {self.id})"
+        return f"({self.name}, form: {float(self.form):.2f}, price: {float(self.price):.2f}, position: {self.position}, team: {self.team}, id: {self.id}, health: {self.health})"
 
     def __eq__(self, other):
-        return self.name == other.name and self.price == other.price and self.form == other.form and self.position == other.position and self.team == other.team and self.id == other.id
+        return self.id == other.id
+
+    @property
+    def form(self):
+        return self._form
+    
+    @form.setter
+    def form(self, new_form):
+        self._form = new_form
+        self.metric = self._form * self.health
+
+    @property
+    def health(self):
+        return self._health
+    
+    @health.setter
+    def health(self, new_health):
+        self._health = new_health
+        self.metric = self._form * self._health 
 
 
 class squad():
@@ -175,14 +196,14 @@ class squad():
         return len(self._goalkeepers) == 2 and len(self._defenders) == 5 and len(self._midfielders) == 5 and len(self._strikers) == 3
 
     def starters(self, player_list, n_starters):
-        player_list.sort(reverse=True, key=lambda x: x.form)
+        player_list.sort(reverse=True, key=lambda x: x.metric)
         return player_list[:n_starters]
 
     def __repr__(self):
         return str(self)
 
     def __str__(self):
-        return f"Squad with Form: {self.total_form:.2f}, cost: {self.total_cost:.2f}"
+        return f"Squad with Metric: {self.total_metric:.2f}, cost: {self.total_metric:.2f}"
 
     @property
     def starting_goalkeeper(self):
@@ -224,8 +245,31 @@ class squad():
         return form
 
     @property
+    def total_metric(self, double_captain=True):
+        metric = 0
+        for player in self.players:
+            metric += player.metric
+            if double_captain and player == self.captain:
+                metric += player.metric
+        return metric
+
+    def player_list_metric(self, player_list):
+        metric = 0
+        for player in player_list:
+            metric += player.metric
+        return metric
+
+    @property
+    def bench(self):
+        bench = squad()
+        starters = self.best_starter_lineup
+        for p in self.players:
+            if p not in starters.players:
+                bench.add_player(p)
+        return bench
+
+    @property
     def best_starter_lineup(self):
-        form = 0
         possible_lineups = [
             [1, 3, 4, 3], 
             [1, 4, 3, 3], 
@@ -240,8 +284,8 @@ class squad():
             ]
 
         best_combination = None
-        best_form = None
-        for i, lineup in enumerate(possible_lineups):
+        best_metric = None
+        for lineup in possible_lineups:
             gks = self.starters(self._goalkeepers, lineup[0])
             defs = self.starters(self._defenders, lineup[1])
             mids = self.starters(self._midfielders, lineup[2])
@@ -257,9 +301,9 @@ class squad():
             for forward in fors:
                 starting_squad.add_player(forward)
 
-            if best_combination is None or starting_squad.total_form > best_form:
+            if best_combination is None or starting_squad.total_metric > best_metric:
                 best_combination = starting_squad
-                best_form = best_combination.total_form
+                best_metric = best_combination.total_metric
         return best_combination
 
     def copy(self):
@@ -269,20 +313,20 @@ class squad():
         return other
 
     def sort_players(self):
-        self._goalkeepers.sort(reverse=True, key=lambda x: x.form)
-        self._defenders.sort(reverse=True, key=lambda x: x.form)
-        self._midfielders.sort(reverse=True, key=lambda x: x.form)
-        self._strikers.sort(reverse=True, key=lambda x: x.form)
-        self._players.sort(reverse=True, key=lambda x: x.form)
+        self._goalkeepers.sort(reverse=True, key=lambda x: x.metric)
+        self._defenders.sort(reverse=True, key=lambda x: x.metric)
+        self._midfielders.sort(reverse=True, key=lambda x: x.metric)
+        self._strikers.sort(reverse=True, key=lambda x: x.metric)
+        self._players.sort(reverse=True, key=lambda x: x.metric)
 
 # @profile
-def fill_squad(squad, available_players, cheapest_cost=None, squad_max_len=15, current_squad=None, n_free_transfers=None, transfer_cost=4, min_form=None, max_form=None, stack_i=1, changes_so_far=None):
+def fill_squad(squad, available_players, cheapest_cost=None, squad_max_len=15, current_squad=None, n_free_transfers=None, transfer_cost=4, min_metric=None, max_metric=None, stack_i=1, changes_so_far=None):
     if cheapest_cost is None:
         cheapest_cost = min(available_players, key=lambda x: x.price).price
-    if min_form is None:
-        min_form = min(available_players, key=lambda x: x.form).form
-    if max_form is None:
-        max_form = max(available_players, key=lambda x: x.form).form
+    if min_metric is None:
+        min_metric = min(available_players, key=lambda x: x.metric).metric
+    if max_metric is None:
+        max_metric = max(available_players, key=lambda x: x.metric).metric
     if n_free_transfers is None:
         n_free_transfers = squad_max_len
     if current_squad is None:
@@ -290,7 +334,7 @@ def fill_squad(squad, available_players, cheapest_cost=None, squad_max_len=15, c
     if changes_so_far is None:
         changes_so_far = squad.number_of_changes(current_squad)
 
-    no_new_players = current_squad is not None and changes_so_far > n_free_transfers and max_form - min_form < transfer_cost
+    no_new_players = current_squad is not None and changes_so_far > n_free_transfers and max_metric - min_metric < transfer_cost
 
     len_players = len(squad.players)
     if len(available_players) == 0 or len_players + len(available_players) < squad_max_len:
@@ -315,8 +359,8 @@ def fill_squad(squad, available_players, cheapest_cost=None, squad_max_len=15, c
         if squad.positions_full:
             yield squad
         elif len(available_players) != i+1:
-            # Assumption: available_players is sorted by form
-            nested_gen = fill_squad(squad, available_players[i+1:], cheapest_cost, transfer_cost=transfer_cost, current_squad=current_squad, n_free_transfers=n_free_transfers, min_form=min_form, max_form=available_players[i+1].form, stack_i=stack_i+1)
+            # Assumption: available_players is sorted by metric
+            nested_gen = fill_squad(squad, available_players[i+1:], cheapest_cost, transfer_cost=transfer_cost, current_squad=current_squad, n_free_transfers=n_free_transfers, min_metric=min_metric, max_metric=available_players[i+1].metric, stack_i=stack_i+1)
             try:
                 yield from nested_gen
             except SquadNotFull:
@@ -332,19 +376,19 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--password', action="store_true", help="True if fantasy password is to be provided manually, false if it's to be decoded from hardcoded encrypted password")
     parser.add_argument('-u', '--user-id', default=3521386, help="user-id from fantasy server to evaluate")
     parser.add_argument('-v', '--verbose', action="store_true", help="Print output for every possible squad")
-    parser.add_argument('-n', '--top-n-players', default=20, help="Number of players to search in, that is the top n players in terms of form")
+    parser.add_argument('-n', '--top-n-players', default=20, help="Number of players to search in, that is the top n players in terms of metric")
     parser.add_argument('--free-transfers',  default=1, help="number of free transfers available")
     parser.add_argument('--overwrite-pulled-team', action="store_true", help="True if you want to build your current squad manually instead of pulling, team would have to be hardcoded")
-    parser.add_argument('--min-player-form', help="minimum acceptable player form")
+    parser.add_argument('--min-player-metric', help="minimum acceptable player metric")
     parser.add_argument('--transfer-cost', default=4, help="cost per transfer")
 
     args = vars(parser.parse_args())
 
-    if args['min_player_form'] is not None:
-        min_acceptable_form = float(args['min_player_form'])
+    if args['min_player_metric'] is not None:
+        min_acceptable_metric = float(args['min_player_metric'])
         top_n_players = None
         if args['verbose']:
-            print(f"Choosing from players with form > {min_acceptable_form} instead of using a top_n_players")
+            print(f"Choosing from players with metric > {min_acceptable_metric} instead of using a top_n_players")
     else:
         top_n_players = int(args['top_n_players'])
         if args['verbose']:
@@ -386,7 +430,10 @@ if __name__ == "__main__":
     json = r.json()
 
     players_json = json['elements']
-    players_json.sort(reverse=True, key=lambda x: float(x['form']))
+    for p in players_json:
+        if p['chance_of_playing_next_round'] is None:
+            p['chance_of_playing_next_round'] = 100
+    players_json.sort(reverse=True, key=lambda x: float(x['form']) * float(x['chance_of_playing_next_round']) / 100)  # if this line is changed, make sure to change the line in the players constructor as well
 
     players = []
     current_squad = squad(max_cost=1000)
@@ -399,28 +446,28 @@ if __name__ == "__main__":
         elif top_n_players is not None and n_new_players < top_n_players:
             players.append(pp)
             n_new_players += 1
-        elif top_n_players is None and pp.form > min_acceptable_form:
+        elif top_n_players is None and pp.form > min_acceptable_metric:
             players.append(pp)
             n_new_players += 1
 
     current_squad.max_cost = my_team_json['entry_history']['bank']/10 + current_squad.total_cost
 
     if args['overwrite_pulled_team']:
-        money_in_bank = 0.3
-        current_squad(max_cost=1000)
-        add_by_last_name(current_squad, "Pope")
+        money_in_bank = 0.6
+        current_squad = squad(max_cost=1000)
+        add_by_last_name(current_squad, "Martínez")
         add_by_last_name(current_squad, "Meslier")
-        add_by_last_name(current_squad, "Robertson")
+        add_by_last_name(current_squad, "Mee")
         add_by_last_name(current_squad, "Bednarek")
-        add_by_last_name(current_squad, "Aurier")
-        add_by_last_name(current_squad, "Dier")
+        add_by_last_name(current_squad, "Stones")
+        add_by_last_name(current_squad, "Holding")
         add_by_last_name(current_squad, "Ogbonna")
-        add_by_last_name(current_squad, "Groß")
-        add_by_last_name(current_squad, "Salah")
+        add_by_last_name(current_squad, "Borges Fernandes")
+        add_by_last_name(current_squad, "Saka")
         add_by_last_name(current_squad, "De Bruyne")
-        add_by_last_name(current_squad, "Soucek")
-        add_by_last_name(current_squad, "Lomba Neto")
-        add_by_last_name(current_squad, "Calvert-Lewin")
+        add_by_last_name(current_squad, "Sigurdsson")
+        add_by_last_name(current_squad, "Gündogan")
+        add_by_last_name(current_squad, "Kane")
         add_by_last_name(current_squad, "Apolinário de Lira")
         add_by_last_name(current_squad, "Welbeck")
         current_squad.sort_players()
@@ -429,10 +476,10 @@ if __name__ == "__main__":
     t_0 = time.time()
 
     changed_squad = current_squad.copy()  # best squad given transfer costs
-    current_form = current_squad.best_starter_lineup.total_form
+    current_metric = current_squad.best_starter_lineup.total_metric
 
     a_squad = squad(max_cost=current_squad.max_cost)
-    a_squad_generator = fill_squad(a_squad, players, transfer_cost=transfer_cost, current_squad=current_squad, n_free_transfers=n_free_transfers, max_form=players[0].form, min_form=players[-1].form)
+    a_squad_generator = fill_squad(a_squad, players, transfer_cost=transfer_cost, current_squad=current_squad, n_free_transfers=n_free_transfers, max_metric=players[0].metric, min_metric=players[-1].metric)
 
     n_squads = 1
     erase = '\x1b[1A\x1b[2K'
@@ -440,13 +487,13 @@ if __name__ == "__main__":
         print('')  # so the erase later doesn't erase the command
 
     def print_changed_squad():
-        print(f"\nChanged Squad:")
-        for player in changed_squad.players:
-            print(f"{player}")
         print(f"\nChanged Squad Lineup:")
         for player in changed_squad.best_starter_lineup.players:
             print(f"{player}")
-        print(f"\nCaptain: {changed_squad.captain}, Form: {changed_squad.captain.form}")
+        print(f"\nChanged Squad Bench:")
+        for player in changed_squad.bench.players:
+            print(f"{player}")
+        print(f"\nCaptain: {changed_squad.captain}, metric: {changed_squad.captain.metric}")
         print("\nChanges needed for Changed Squad:\n")
         changed_squad.changes_from(current_squad)
         print("\n")
@@ -456,7 +503,7 @@ if __name__ == "__main__":
             try:
                 b_squad = next(a_squad_generator)
                 if args['verbose']:
-                    print(f"Found! Current form: {current_form:.2f}; Changed form: {changed_squad.best_starter_lineup.total_form:.2f}; Iter form: {b_squad.best_starter_lineup.total_form:.2f}\n")
+                    print(f"Found! Current metric: {current_metric:.2f}; Changed metric: {changed_squad.best_starter_lineup.total_metric:.2f}; Iter metric: {b_squad.best_starter_lineup.total_metric:.2f}\n")
                 else:
                     print(f'{erase}Valid squads found: {n_squads}, Progress: ', end='')
                     for i, player in enumerate(b_squad.players):
@@ -473,14 +520,18 @@ if __name__ == "__main__":
                 break
 
             # Adjust for cost of transfers
-            b_squad_adjusted = b_squad.best_starter_lineup.total_form - max(0, b_squad.number_of_changes(current_squad) - n_free_transfers) * transfer_cost
-            changed_squad_adjusted = changed_squad.best_starter_lineup.total_form - max(0, changed_squad.number_of_changes(current_squad) - n_free_transfers) * transfer_cost
+            b_squad_adjusted = b_squad.best_starter_lineup.total_metric - max(0, b_squad.number_of_changes(current_squad) - n_free_transfers) * transfer_cost
+            changed_squad_adjusted = changed_squad.best_starter_lineup.total_metric - max(0, changed_squad.number_of_changes(current_squad) - n_free_transfers) * transfer_cost
             if  b_squad_adjusted > changed_squad_adjusted:
                 changed_squad = b_squad.copy()
-                print(f"Found a squad that was better for the change! New startup form: {b_squad.best_starter_lineup.total_form:.2f}\n")
-            elif b_squad_adjusted == changed_squad_adjusted and b_squad.total_cost < changed_squad.total_cost:
-                changed_squad = b_squad.copy()
-                print(f"Found a squad was as good but cheaper for the change! New startup form: {b_squad.best_starter_lineup.total_form:.2f}\n")
+                print(f"Found a squad that was better for the change! New startup metric: {b_squad.best_starter_lineup.total_metric:.2f}\n")
+            elif b_squad_adjusted == changed_squad_adjusted:
+                if b_squad.total_cost < changed_squad.total_cost:
+                    changed_squad = b_squad.copy()
+                    print(f"Found a squad was as good but cheaper for the change! New startup metric: {b_squad.best_starter_lineup.total_metric:.2f}\n")
+                elif b_squad.total_metric > changed_squad.total_metric:
+                    changed_squad = b_squad.copy()
+                    print(f"Found a squad was as good but with better bench! New startup metric: {b_squad.best_starter_lineup.total_metric:.2f}\n")
         t_1 = time.time()
         print(f"Total time: {t_1 - t_0:.2f}s = {(t_1 - t_0) // 60:.0f}:{t_1 - t_0 - 60 * ((t_1 - t_0) // 60):.0f}")
 
