@@ -1,4 +1,3 @@
-import numpy as np 
 import requests
 import time
 import types
@@ -335,6 +334,7 @@ def fill_squad(squad, available_players, cheapest_cost=None, squad_max_len=15, c
         changes_so_far = squad.number_of_changes(current_squad)
 
     no_new_players = current_squad is not None and changes_so_far > n_free_transfers and max_metric - min_metric < transfer_cost
+    no_new_players = False
 
     len_players = len(squad.players)
     if len(available_players) == 0 or len_players + len(available_players) < squad_max_len:
@@ -381,6 +381,7 @@ if __name__ == "__main__":
     parser.add_argument('--overwrite-pulled-team', action="store_true", help="True if you want to build your current squad manually instead of pulling, team would have to be hardcoded")
     parser.add_argument('--min-player-metric', help="minimum acceptable player metric")
     parser.add_argument('--transfer-cost', default=4, help="cost per transfer")
+    parser.add_argument('--bench-point-value', default=5, help="cost of a bench point")
 
     args = vars(parser.parse_args())
 
@@ -453,23 +454,23 @@ if __name__ == "__main__":
     current_squad.max_cost = my_team_json['entry_history']['bank']/10 + current_squad.total_cost
 
     if args['overwrite_pulled_team']:
-        money_in_bank = 0.6
+        money_in_bank = 11.3
         current_squad = squad(max_cost=1000)
-        add_by_last_name(current_squad, "Martínez")
+        add_by_last_name(current_squad, "Leno")
         add_by_last_name(current_squad, "Meslier")
-        add_by_last_name(current_squad, "Mee")
-        add_by_last_name(current_squad, "Bednarek")
+        add_by_last_name(current_squad, "Cancelo")
+        add_by_last_name(current_squad, "Cresswell")
         add_by_last_name(current_squad, "Stones")
-        add_by_last_name(current_squad, "Holding")
-        add_by_last_name(current_squad, "Ogbonna")
-        add_by_last_name(current_squad, "Borges Fernandes")
+        add_by_last_name(current_squad, "Targett")
+        add_by_last_name(current_squad, "Dunk")
         add_by_last_name(current_squad, "Saka")
-        add_by_last_name(current_squad, "De Bruyne")
-        add_by_last_name(current_squad, "Sigurdsson")
+        add_by_last_name(current_squad, "Tielemans")
+        add_by_last_name(current_squad, "Soucek")
+        add_by_last_name(current_squad, "Maddison")
         add_by_last_name(current_squad, "Gündogan")
-        add_by_last_name(current_squad, "Kane")
-        add_by_last_name(current_squad, "Apolinário de Lira")
-        add_by_last_name(current_squad, "Welbeck")
+        add_by_last_name(current_squad, "Lacazette")
+        add_by_last_name(current_squad, "Antonio")
+        add_by_last_name(current_squad, "Maupay")
         current_squad.sort_players()
         current_squad.max_cost = money_in_bank + current_squad.total_cost
 
@@ -499,6 +500,7 @@ if __name__ == "__main__":
         print("\n")
 
     with kp() as KP:
+        top_changed_bench_metric = 0
         while True:
             try:
                 b_squad = next(a_squad_generator)
@@ -526,12 +528,12 @@ if __name__ == "__main__":
                 changed_squad = b_squad.copy()
                 print(f"Found a squad that was better for the change! New startup metric: {b_squad.best_starter_lineup.total_metric:.2f}\n")
             elif b_squad_adjusted == changed_squad_adjusted:
-                if b_squad.total_cost < changed_squad.total_cost:
+                bench_points_required_for_change = (b_squad.total_cost - changed_squad.total_cost) * float(args['bench_point_value'])  # If positive, I prefer changed_squad unless it has a nice bench
+
+                if b_squad.bench.total_metric - changed_squad.bench.total_metric > bench_points_required_for_change:
                     changed_squad = b_squad.copy()
-                    print(f"Found a squad was as good but cheaper for the change! New startup metric: {b_squad.best_starter_lineup.total_metric:.2f}\n")
-                elif b_squad.total_metric > changed_squad.total_metric:
-                    changed_squad = b_squad.copy()
-                    print(f"Found a squad was as good but with better bench! New startup metric: {b_squad.best_starter_lineup.total_metric:.2f}\n")
+                    print(f"Found a squad was as good but with better value/bench! New startup metric: {b_squad.best_starter_lineup.total_metric:.2f}\n")                    
+
         t_1 = time.time()
         print(f"Total time: {t_1 - t_0:.2f}s = {(t_1 - t_0) // 60:.0f}:{t_1 - t_0 - 60 * ((t_1 - t_0) // 60):.0f}")
 
