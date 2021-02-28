@@ -26,6 +26,9 @@ class DuplicatePlayer(RuntimeError):
 
 epsilon = 1e-4
 
+def clear_line(n_char):
+    print('\r' + n_char * ' ', end='\r')
+
 def player_(p_info):
     if p_info['element_type'] == 1:
         position = "goalkeeper"
@@ -483,9 +486,6 @@ if __name__ == "__main__":
     a_squad_generator = fill_squad(a_squad, players, transfer_cost=transfer_cost, current_squad=current_squad, n_free_transfers=n_free_transfers, max_metric=players[0].metric, min_metric=players[-1].metric)
 
     n_squads = 1
-    erase = '\x1b[1A\x1b[2K'
-    if not args['verbose']:
-        print('')  # so the erase later doesn't erase the command
 
     def print_changed_squad():
         print(f"\nChanged Squad Lineup:")
@@ -499,6 +499,9 @@ if __name__ == "__main__":
         changed_squad.changes_from(current_squad)
         print("\n")
 
+    line = ''
+    last_line = line
+    s_time = time.time()      
     with kp() as KP:
         top_changed_bench_metric = 0
         while True:
@@ -507,12 +510,14 @@ if __name__ == "__main__":
                 if args['verbose']:
                     print(f"Found! Current metric: {current_metric:.2f}; Changed metric: {changed_squad.best_starter_lineup.total_metric:.2f}; Iter metric: {b_squad.best_starter_lineup.total_metric:.2f}\n")
                 else:
-                    print(f'{erase}Valid squads found: {n_squads}, Progress: ', end='')
+                    line = f'Valid squads found: {n_squads}, Progress: '
                     for i, player in enumerate(b_squad.players):
-                        print(f"{players[i:].index(player)}/{len(players[i:])}, ", end='')
-                    print('')
+                        line = line + f"{players[i:].index(player)}/{len(players[i:])}, "
                     n_squads += 1
-                if n_squads % 100 == 0:
+                    line = line + f"; time per squad: {1000 * (time.time()-s_time) / n_squads:.2f}ms"
+                if (n_squads - 1) % 100 == 0:
+                    print(line + (len(last_line) - len(line)) * ' ', end='\r')
+                    last_line = line
                     key = KP.poll()
                     if key == "p":
                         print_changed_squad()
@@ -526,13 +531,17 @@ if __name__ == "__main__":
             changed_squad_adjusted = changed_squad.best_starter_lineup.total_metric - max(0, changed_squad.number_of_changes(current_squad) - n_free_transfers) * transfer_cost
             if  b_squad_adjusted > changed_squad_adjusted:
                 changed_squad = b_squad.copy()
-                print(f"Found a squad that was better for the change! New startup metric: {b_squad.best_starter_lineup.total_metric:.2f}\n")
+                print(line + (len(last_line) - len(line)) * ' ', end='\r')
+                last_line = line
+                print(f"\nFound a squad that was better for the change! New startup metric: {b_squad.best_starter_lineup.total_metric:.2f}\n")
             elif b_squad_adjusted == changed_squad_adjusted:
                 bench_points_required_for_change = (b_squad.total_cost - changed_squad.total_cost) * float(args['bench_point_value'])  # If positive, I prefer changed_squad unless it has a nice bench
 
                 if b_squad.bench.total_metric - changed_squad.bench.total_metric > bench_points_required_for_change:
                     changed_squad = b_squad.copy()
-                    print(f"Found a squad was as good but with better value/bench! New startup metric: {b_squad.best_starter_lineup.total_metric:.2f}\n")                    
+                    print(line + (len(last_line) - len(line)) * ' ', end='\r')
+                    last_line = line
+                    print(f"\nFound a squad was as good but with better value/bench! New startup metric: {b_squad.best_starter_lineup.total_metric:.2f}\n")                    
 
         t_1 = time.time()
         print(f"Total time: {t_1 - t_0:.2f}s = {(t_1 - t_0) // 60:.0f}:{t_1 - t_0 - 60 * ((t_1 - t_0) // 60):.0f}")
