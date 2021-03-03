@@ -63,7 +63,7 @@ class player():
         self.team = team
         self.id = id
 
-        self.metric = self.form * self.health  ## If this line is changed, make sure to change the line where players_json is sorted as well
+        self.set_metric()
 
     def __repr__(self):
         return f"({self.name}, {float(self.form):.2f}, {float(self.price):.2f}, {self.position}, {self.team}, {self.id}, {self.health})"
@@ -90,7 +90,14 @@ class player():
     @health.setter
     def health(self, new_health):
         self._health = new_health
-        self.metric = self._form * self._health 
+        self.set_metric()
+
+    @property
+    def metric(self):
+        return self._metric
+
+    def set_metric(self):
+        self._metric = self.form * self.health  ## If this line is changed, make sure to change the line where players_json is sorted as well
 
 
 class squad():
@@ -459,17 +466,17 @@ if __name__ == "__main__":
     if args['overwrite_pulled_team']:
         money_in_bank = 11.3
         current_squad = squad(max_cost=1000)
-        add_by_last_name(current_squad, "Leno")
+        add_by_last_name(current_squad, "Sánchez")
         add_by_last_name(current_squad, "Meslier")
-        add_by_last_name(current_squad, "Cancelo")
+        add_by_last_name(current_squad, "Dunk")
         add_by_last_name(current_squad, "Cresswell")
         add_by_last_name(current_squad, "Stones")
         add_by_last_name(current_squad, "Targett")
-        add_by_last_name(current_squad, "Dunk")
-        add_by_last_name(current_squad, "Saka")
+        add_by_last_name(current_squad, "Cancelo")
+        add_by_last_name(current_squad, "Dias Belloli")
         add_by_last_name(current_squad, "Tielemans")
-        add_by_last_name(current_squad, "Soucek")
         add_by_last_name(current_squad, "Maddison")
+        add_by_last_name(current_squad, "Pereira")
         add_by_last_name(current_squad, "Gündogan")
         add_by_last_name(current_squad, "Lacazette")
         add_by_last_name(current_squad, "Antonio")
